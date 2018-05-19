@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <curses.h>
 
 static DB_gui_t plugin;
 DB_functions_t *deadbeef;
@@ -48,6 +49,13 @@ ui_start (void) {
     nowplaying_bc = deadbeef->tf_compile (nowplaying_tf_default);
     statusbar_bc = deadbeef->tf_compile (statusbar_tf);
 
+
+    initscr();
+    nodelay(stdscr, TRUE);
+    keypad(stdscr, TRUE);
+    halfdelay(5);
+    noecho();
+
     char str[200];
 
     while (!kill) {
@@ -56,8 +64,33 @@ ui_start (void) {
             format_title (it, statusbar_bc, str, sizeof(str));
             printf ("%s\r", str);
         }
-        sleep (.1);
+        char c = getch ();
+        switch (c) {
+            case 'z':
+            deadbeef->sendmessage (DB_EV_PREV, 0, 0, 0);
+            break;
+            case 'x':
+            deadbeef->sendmessage (DB_EV_PLAY_CURRENT, 0, 0, 0);
+            break;
+            case 'c':
+            deadbeef->sendmessage (DB_EV_PAUSE, 0, 0, 0);
+            break;
+            case 'v':
+            deadbeef->sendmessage (DB_EV_STOP, 0, 0, 0);
+            break;
+            case 'b':
+            deadbeef->sendmessage (DB_EV_NEXT, 0, 0, 0);
+            break;
+            case 'q':
+            deadbeef->sendmessage (DB_EV_TERMINATE, 0, 0, 0);
+            kill = 1;
+            break;
+        }
+        //sleep (.1);
+        fflush(stdout);
+
     }
+    endwin();
 
     return 0;
 }
@@ -85,7 +118,7 @@ void
 format_title (DB_playItem_t *it, const char *tfbc, char *out, int sz) {
     deadbeef->pl_item_ref (it);
 
-    char str[1024];
+    char str[sz];
     ddb_tf_context_t ctx = {
         ._size = sizeof (ddb_tf_context_t),
         .it = it,
@@ -98,7 +131,7 @@ format_title (DB_playItem_t *it, const char *tfbc, char *out, int sz) {
         deadbeef->plt_unref (ctx.plt);
         ctx.plt = NULL;
     }
-    strncpy (out, str, sz);
+    strcpy (out, str);
     if (it) {
         deadbeef->pl_item_unref (it);
     }
@@ -160,7 +193,7 @@ static DB_gui_t plugin = {
     .plugin.type = DB_PLUGIN_GUI,
     .plugin.id = "com.saivert.ddb_gui_console",
     .plugin.name = "Console user interface",
-    .plugin.descr = "User interface using ncurses (well eventually)",
+    .plugin.descr = "User interface using ncurses",
     .plugin.copyright =
         "Console user interface for DeaDBeeF Player.\n"
         "Copyright (C) 2018 Nicolai Syvertsen\n"
