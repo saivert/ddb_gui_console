@@ -62,7 +62,11 @@ ui_start (void) {
         DB_playItem_t *it = deadbeef->streamer_get_playing_track ();
         if (it) {
             format_title (it, statusbar_bc, str, sizeof(str));
-            printf ("%s\r", str);
+            mvaddstr (LINES - 1, 0, str);
+            clrtoeol();
+        } else {
+            mvaddstr (LINES - 1, 0, "Stopped");
+            clrtoeol();
         }
         char c = getch ();
         switch (c) {
@@ -87,7 +91,6 @@ ui_start (void) {
             break;
         }
         //sleep (.1);
-        fflush(stdout);
 
     }
     endwin();
@@ -147,7 +150,9 @@ ui_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
         if (ev->track) {
                 char str[200];
                 format_title (ev->track, nowplaying_bc, str, sizeof(str));
-                printf ("%s\n", str);
+                clear ();
+                mvaddstr (1, 0, str);
+
         }
 
         break;
