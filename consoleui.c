@@ -41,8 +41,6 @@ format_title (DB_playItem_t *it, const char *tfbc, char *out, int sz);
 
 static int
 ui_start (void) {
-    //char fmt[500];
-    //deadbeef->conf_get_str ("gtkui.titlebar_playing_tf", nowplaying_tf_default, fmt, sizeof (fmt));
     const char *nowplaying_tf_default = "Now playing: %artist% - %title%";
     const char statusbar_tf[] = "$if2($strcmp(%ispaused%,),Paused | )$if2($upper(%codec%),-) |[ %playback_bitrate% kbps |][ %samplerate%Hz |][ %:BPS% bit |][ %channels% |] %playback_time% / %length%";
 
