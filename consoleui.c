@@ -34,7 +34,7 @@ DB_functions_t *deadbeef;
 static char *nowplaying_bc;
 static char *statusbar_bc;
 
-static int kill;
+static int ui_running=1;
 
 void
 format_title (DB_playItem_t *it, const char *tfbc, char *out, int sz);
@@ -57,7 +57,7 @@ ui_start (void) {
 
     char str[200];
 
-    while (!kill) {
+    while (ui_running) {
         DB_playItem_t *it = deadbeef->streamer_get_playing_track ();
         if (it) {
             format_title (it, statusbar_bc, str, sizeof(str));
@@ -68,7 +68,7 @@ ui_start (void) {
             mvaddstr (LINES - 1, 0, "Stopped");
             clrtoeol();
         }
-        char c = getch ();
+        int c = getch ();
         switch (c) {
             case 'z':
             deadbeef->sendmessage (DB_EV_PREV, 0, 0, 0);
@@ -87,7 +87,7 @@ ui_start (void) {
             break;
             case 'q':
             deadbeef->sendmessage (DB_EV_TERMINATE, 0, 0, 0);
-            kill = 1;
+            ui_running = 0;
             break;
         }
         //sleep (.1);
@@ -110,7 +110,7 @@ ui_disconnect (void) {
 
 static int
 ui_stop (void) {
-    kill = 1;
+    ui_running = 0;
     deadbeef->tf_free (nowplaying_bc);
     deadbeef->tf_free (statusbar_bc);
     return 0;
