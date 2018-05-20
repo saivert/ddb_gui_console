@@ -55,6 +55,7 @@ ui_start (void) {
     keypad(stdscr, TRUE);
     halfdelay(5);
     noecho();
+    mvaddstr (LINES - 2, 0, "Keys: z = Prev, x = Play, c = Pause, v = Stop, b = Next, q = Quit");
 
     char str[200];
 
@@ -150,8 +151,8 @@ ui_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
         if (ev->track) {
                 char str[200];
                 format_title (ev->track, nowplaying_bc, str, sizeof(str));
-                clear ();
                 mvaddstr (1, 0, str);
+                clrtoeol ();
 
         }
 
