@@ -63,6 +63,7 @@ ui_start (void) {
         DB_playItem_t *it = deadbeef->streamer_get_playing_track ();
         if (it) {
             format_title (it, statusbar_bc, str, sizeof(str));
+            deadbeef->pl_item_unref (it);
             mvaddstr (LINES - 1, 0, str);
             clrtoeol();
         } else {
@@ -120,8 +121,6 @@ ui_stop (void) {
 
 void
 format_title (DB_playItem_t *it, const char *tfbc, char *out, int sz) {
-    deadbeef->pl_item_ref (it);
-
     char str[sz];
     ddb_tf_context_t ctx = {
         ._size = sizeof (ddb_tf_context_t),
@@ -136,9 +135,6 @@ format_title (DB_playItem_t *it, const char *tfbc, char *out, int sz) {
         ctx.plt = NULL;
     }
     strcpy (out, str);
-    if (it) {
-        deadbeef->pl_item_unref (it);
-    }
 }
 
 static int
