@@ -147,9 +147,18 @@ ui_disconnect (void) {
 
 static int
 ui_stop (void) {
+    if (nowplaying_bc) {
+        deadbeef->tf_free (nowplaying_bc);
+        nowplaying_bc = NULL;
+    }
+
+    if (statusbar_bc) {
+        deadbeef->tf_free (statusbar_bc);
+        statusbar_bc = NULL;
+    }
+
     ui_running = 0;
-    deadbeef->tf_free (nowplaying_bc);
-    deadbeef->tf_free (statusbar_bc);
+
     return 0;
 }
 
