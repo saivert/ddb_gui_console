@@ -67,6 +67,11 @@ render_statusbar() {
     clrtoeol();
 }
 
+static void
+render_shortcuts() {
+    mvaddstr (LINES - 2, 0, "Keys: z = Prev, x = Play, c = Pause, v = Stop, b = Next, q = Quit");
+}
+
 static int
 ui_start (void) {
     const char *nowplaying_tf_default = "Now playing: %artist% - %title%";
@@ -81,8 +86,7 @@ ui_start (void) {
     keypad(stdscr, TRUE);
     halfdelay(5);
     noecho();
-    mvaddstr (LINES - 2, 0, "Keys: z = Prev, x = Play, c = Pause, v = Stop, b = Next, q = Quit");
-
+    render_shortcuts ();
 
     while (ui_running) {
         render_statusbar();
@@ -106,6 +110,13 @@ ui_start (void) {
             case 'q':
             deadbeef->sendmessage (DB_EV_TERMINATE, 0, 0, 0);
             ui_running = 0;
+            break;
+            case KEY_RESIZE:
+            clear ();
+            refresh ();
+            render_title ();
+            render_shortcuts ();
+            render_statusbar ();
             break;
         }
         //sleep (.1);
