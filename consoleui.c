@@ -39,6 +39,34 @@ static int ui_running=1;
 void
 format_title (DB_playItem_t *it, const char *tfbc, char *out, int sz);
 
+static void
+render_title() {
+    char str[200];
+    DB_playItem_t *it = deadbeef->streamer_get_playing_track ();
+    if (it) {
+        format_title (it, nowplaying_bc, str, sizeof(str));
+        deadbeef->pl_item_unref (it);
+    } else {
+        strcpy (str, "No title");
+    }
+    mvaddstr (1, 0, str);
+    clrtoeol ();
+}
+
+static void
+render_statusbar() {
+    char str[200];
+    DB_playItem_t *it = deadbeef->streamer_get_playing_track ();
+    if (it) {
+        format_title (it, statusbar_bc, str, sizeof(str));
+        deadbeef->pl_item_unref (it);
+    } else {
+        strcpy (str, "Stopped");
+    }
+    mvaddstr (LINES - 1, 0, str);
+    clrtoeol();
+}
+
 static int
 ui_start (void) {
     const char *nowplaying_tf_default = "Now playing: %artist% - %title%";
@@ -55,19 +83,9 @@ ui_start (void) {
     noecho();
     mvaddstr (LINES - 2, 0, "Keys: z = Prev, x = Play, c = Pause, v = Stop, b = Next, q = Quit");
 
-    char str[200];
 
     while (ui_running) {
-        DB_playItem_t *it = deadbeef->streamer_get_playing_track ();
-        if (it) {
-            format_title (it, statusbar_bc, str, sizeof(str));
-            deadbeef->pl_item_unref (it);
-            mvaddstr (LINES - 1, 0, str);
-            clrtoeol();
-        } else {
-            mvaddstr (LINES - 1, 0, "Stopped");
-            clrtoeol();
-        }
+        render_statusbar();
         int c = getch ();
         switch (c) {
             case 'z':
@@ -143,11 +161,7 @@ ui_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
         {
         ddb_event_track_t *ev = (ddb_event_track_t *)ctx;
         if (ev->track) {
-                char str[200];
-                format_title (ev->track, nowplaying_bc, str, sizeof(str));
-                mvaddstr (1, 0, str);
-                clrtoeol ();
-
+            render_title ();
         }
 
         break;
