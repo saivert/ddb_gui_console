@@ -64,6 +64,8 @@ render_statusbar() {
         strcpy (str, "Stopped");
     }
     mvaddstr (LINES - 1, 0, str);
+    snprintf (str, sizeof(str), " Vol: %.0f%% (%.2f dB)", deadbeef->volume_get_db() * 2 + 100 , deadbeef->volume_get_db());
+    mvaddstr (LINES - 1, COLS-strlen(str), str);
     clrtoeol();
 }
 
@@ -110,6 +112,12 @@ ui_start (void) {
             case 'q':
             deadbeef->sendmessage (DB_EV_TERMINATE, 0, 0, 0);
             ui_running = 0;
+            break;
+            case '+':
+            deadbeef->volume_set_db(deadbeef->volume_get_db()+5);
+            break;
+            case '-':
+            deadbeef->volume_set_db(deadbeef->volume_get_db()-5);
             break;
             case KEY_RESIZE:
             clear ();
