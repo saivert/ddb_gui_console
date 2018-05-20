@@ -205,6 +205,9 @@ ui_run_dialog (ddb_dialog_t *conf, uint32_t buttons, int (*callback)(int button,
 
 DB_plugin_t *
 ddb_gui_console_load (DB_functions_t *api) {
+    if (!isatty(STDIN_FILENO)) {
+        return 0;
+    }
     deadbeef = api;
     return DB_PLUGIN (&plugin);
 }
