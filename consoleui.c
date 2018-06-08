@@ -25,7 +25,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <curses.h>
+
+#include "newt.h"
 
 static DB_gui_t plugin;
 DB_functions_t *deadbeef;
@@ -36,11 +37,14 @@ static char *statusbar_bc;
 
 static int ui_running=1;
 
+static newtComponent songbox;
+
+
 void
 format_title (DB_playItem_t *it, const char *tfbc, char *out, int sz);
 
 static void
-render_title() {
+render_title(newtComponent box) {
     char str[200];
     DB_playItem_t *it = deadbeef->streamer_get_playing_track ();
     if (it) {
@@ -49,12 +53,12 @@ render_title() {
     } else {
         strcpy (str, "No title");
     }
-    mvaddstr (1, 0, str);
-    clrtoeol ();
+
+    newtTextboxSetText(box, str);
 }
 
 static void
-render_statusbar() {
+render_statusbar(newtComponent label) {
     char str[200];
     DB_playItem_t *it = deadbeef->streamer_get_playing_track ();
     if (it) {
@@ -63,16 +67,13 @@ render_statusbar() {
     } else {
         strcpy (str, "Stopped");
     }
-    mvaddstr (LINES - 1, 0, str);
-    snprintf (str, sizeof(str), " Vol: %.0f%% (%.2f dB)", deadbeef->volume_get_db() * 2 + 100 , deadbeef->volume_get_db());
-    mvaddstr (LINES - 1, COLS-strlen(str), str);
-    clrtoeol();
+    newtLabelSetText(label, str);
+
+    // Draw volume on background for the time being
+    snprintf (str, sizeof(str), " Vol: %.0f%% (%.2f dB)  ", deadbeef->volume_get_db() * 2 + 100 , deadbeef->volume_get_db());
+    newtDrawRootText(0,3, str);
 }
 
-static void
-render_shortcuts() {
-    mvaddstr (LINES - 2, 0, "Keys: z = Prev, x = Play, c = Pause, v = Stop, b = Next, q = Quit");
-}
 
 static int
 ui_start (void) {
@@ -82,55 +83,77 @@ ui_start (void) {
     nowplaying_bc = deadbeef->tf_compile (nowplaying_tf_default);
     statusbar_bc = deadbeef->tf_compile (statusbar_tf);
 
+    newtInit();
+    newtCls();
+    newtPushHelpLine("Keys: z = Prev, x = Play, c = Pause, v = Stop, b = Next, q = Quit");
+    newtDrawRootText(0,0, "DeaDBeeF");
 
-    initscr();
-    nodelay(stdscr, TRUE);
-    keypad(stdscr, TRUE);
-    halfdelay(5);
-    noecho();
-    render_shortcuts ();
+    newtOpenWindow(5, 5, 70, 8, "Player");
+    newtComponent playerform = newtForm(NULL, "This is some help text", 0);
+    newtComponent titlelabel = newtLabel(3, 2, "Title:");
+    songbox = newtTextbox(10, 2, 40, 2, NEWT_FLAG_WRAP);
 
-    while (ui_running) {
-        render_statusbar();
-        int c = getch ();
-        switch (c) {
-            case 'z':
-            deadbeef->sendmessage (DB_EV_PREV, 0, 0, 0);
-            break;
-            case 'x':
-            deadbeef->sendmessage (DB_EV_PLAY_CURRENT, 0, 0, 0);
-            break;
-            case 'c':
-            deadbeef->sendmessage (DB_EV_PAUSE, 0, 0, 0);
-            break;
-            case 'v':
-            deadbeef->sendmessage (DB_EV_STOP, 0, 0, 0);
-            break;
-            case 'b':
-            deadbeef->sendmessage (DB_EV_NEXT, 0, 0, 0);
-            break;
-            case 'q':
-            deadbeef->sendmessage (DB_EV_TERMINATE, 0, 0, 0);
-            ui_running = 0;
-            break;
-            case '+':
-            deadbeef->volume_set_db(deadbeef->volume_get_db()+5);
-            break;
-            case '-':
-            deadbeef->volume_set_db(deadbeef->volume_get_db()-5);
-            break;
-            case KEY_RESIZE:
-            clear ();
-            refresh ();
-            render_title ();
-            render_shortcuts ();
-            render_statusbar ();
-            break;
-        }
-        //sleep (.1);
+    newtComponent statuslabel = newtLabel(3, 6, "status");
 
+    newtFormAddComponents(playerform, titlelabel, songbox, statuslabel, NULL);
+
+    newtRefresh();
+    newtFormSetTimer(playerform, 200);
+
+    char keys[] = "zxcvbq+-";
+    char k, len;
+    len = sizeof(keys);
+    for (k = 0; k < len; k++) {
+        newtFormAddHotKey (playerform, keys[k]);
     }
-    endwin();
+
+    struct newtExitStruct es;
+    do {
+        //memset (&es, 0, sizeof(es));
+        newtFormRun(playerform, &es);
+        if (es.reason == NEWT_EXIT_COMPONENT) {
+            //newtRefresh();
+        } else if (es.reason == NEWT_EXIT_TIMER) {
+            //render_title(songbox);
+            render_statusbar(statuslabel);
+            newtRefresh();
+        } else if (es.reason == NEWT_EXIT_HOTKEY) {
+            switch (es.u.key) {
+                case 'z':
+                deadbeef->sendmessage (DB_EV_PREV, 0, 0, 0);
+                break;
+                case 'x':
+                deadbeef->sendmessage (DB_EV_PLAY_CURRENT, 0, 0, 0);
+                break;
+                case 'c':
+                deadbeef->sendmessage (DB_EV_PAUSE, 0, 0, 0);
+                break;
+                case 'v':
+                deadbeef->sendmessage (DB_EV_STOP, 0, 0, 0);
+                break;
+                case 'b':
+                deadbeef->sendmessage (DB_EV_NEXT, 0, 0, 0);
+                break;
+                case 'q':
+                deadbeef->sendmessage (DB_EV_TERMINATE, 0, 0, 0);
+                ui_running = 0;
+                break;
+                case '+':
+                deadbeef->volume_set_db(deadbeef->volume_get_db()+5);
+                break;
+                case '-':
+                deadbeef->volume_set_db(deadbeef->volume_get_db()-5);
+                break;
+            }
+        }
+
+
+    } while (es.reason != NEWT_EXIT_COMPONENT && ui_running);
+
+
+    newtPopWindow();
+    newtFinished();
+    newtFormDestroy (playerform);
 
     return 0;
 }
@@ -189,7 +212,7 @@ ui_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
         {
         ddb_event_track_t *ev = (ddb_event_track_t *)ctx;
         if (ev->track) {
-            render_title ();
+            render_title (songbox);
         }
 
         break;
