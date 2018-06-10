@@ -35,16 +35,20 @@ DB_functions_t *deadbeef;
 static char *nowplaying_bc;
 static char *statusbar_bc;
 
-static int ui_running=1;
+static int ui_running;
 
 static newtComponent songbox;
-
+static newtComponent seekbar;
+static newtComponent statuslabel;
 
 void
 format_title (DB_playItem_t *it, const char *tfbc, char *out, int sz);
 
 static void
 render_title(newtComponent box) {
+    if (!ui_running) {
+        return;
+    }
     char str[200];
     DB_playItem_t *it = deadbeef->streamer_get_playing_track ();
     if (it) {
@@ -59,43 +63,61 @@ render_title(newtComponent box) {
 
 static void
 render_statusbar(newtComponent label) {
+    if (!ui_running) {
+        return;
+    }
     char str[200];
     DB_playItem_t *it = deadbeef->streamer_get_playing_track ();
     if (it) {
         format_title (it, statusbar_bc, str, sizeof(str));
         deadbeef->pl_item_unref (it);
+        float pos = deadbeef->streamer_get_playpos();
+        float duration = deadbeef->pl_get_item_duration(it);
+        newtScaleSet(seekbar, (pos / duration) * 100);
     } else {
         strcpy (str, "Stopped");
     }
     newtLabelSetText(label, str);
 
     // Draw volume on background for the time being
-    snprintf (str, sizeof(str), " Vol: %.0f%% (%.2f dB)  ", deadbeef->volume_get_db() * 2 + 100 , deadbeef->volume_get_db());
-    newtDrawRootText(0,3, str);
+    snprintf (str, sizeof(str), "Vol: %.0f%% (%.2f dB)  ", deadbeef->volume_get_db() * 2 + 100 , deadbeef->volume_get_db());
+    newtDrawRootText(-24,1, str);
 }
 
-
 static int
-ui_start (void) {
-    const char *nowplaying_tf_default = "Now playing: %artist% - %title%";
-    const char statusbar_tf[] = "$if2($strcmp(%ispaused%,),Paused | )$if2($upper(%codec%),-) |[ %playback_bitrate% kbps |][ %samplerate%Hz |][ %:BPS% bit |][ %channels% |] %playback_time% / %length%";
+seek_sec (float sec) {
+    deadbeef->pl_lock ();
+    DB_playItem_t *it = deadbeef->streamer_get_playing_track ();
+    if (it) {
+        float dur = deadbeef->pl_get_item_duration (it);
+        if (dur > 0) {
+            float pos = deadbeef->streamer_get_playpos ();
+            pos += sec;
+            if (pos < 0) {
+                pos = 0;
+            }
+            deadbeef->sendmessage (DB_EV_SEEK, 0, pos * 1000, 0);
+        }
+        deadbeef->pl_item_unref (it);
+    }
+    deadbeef->pl_unlock ();
+    return 0;
+}
 
-    nowplaying_bc = deadbeef->tf_compile (nowplaying_tf_default);
-    statusbar_bc = deadbeef->tf_compile (statusbar_tf);
-
-    newtInit();
-    newtCls();
-    newtPushHelpLine("Keys: z = Prev, x = Play, c = Pause, v = Stop, b = Next, q = Quit");
-    newtDrawRootText(0,0, "DeaDBeeF");
-
-    newtOpenWindow(5, 5, 70, 8, "Player");
+static newtComponent
+create_form(void)
+{
+    int cols, rows;
+    newtGetScreenSize(&cols, &rows);
+    //newtOpenWindow(1, 2, cols-4, rows-4, "DeaDBeeF");
     newtComponent playerform = newtForm(NULL, "This is some help text", 0);
-    newtComponent titlelabel = newtLabel(3, 2, "Title:");
-    songbox = newtTextbox(10, 2, 40, 2, NEWT_FLAG_WRAP);
+    newtComponent titlelabel = newtLabel(3, 1, "Track:");
+    songbox = newtTextbox(10, 1, cols-4, 2, NEWT_FLAG_WRAP);
 
-    newtComponent statuslabel = newtLabel(3, 6, "status");
+    seekbar = newtScale(2, 5, cols-4, 100);
+    statuslabel = newtLabel(2, 6, "status");
 
-    newtFormAddComponents(playerform, titlelabel, songbox, statuslabel, NULL);
+    newtFormAddComponents(playerform, titlelabel, songbox, statuslabel, seekbar, NULL);
 
     newtRefresh();
     newtFormSetTimer(playerform, 200);
@@ -106,6 +128,32 @@ ui_start (void) {
     for (k = 0; k < len; k++) {
         newtFormAddHotKey (playerform, keys[k]);
     }
+    newtFormAddHotKey (playerform, NEWT_KEY_LEFT);
+    newtFormAddHotKey (playerform, NEWT_KEY_RIGHT);
+    return playerform;
+}
+
+static int
+ui_start (void) {
+    const char *nowplaying_tf_default = "%artist% - %title%";
+    const char statusbar_tf[] = "$if2($strcmp(%ispaused%,),Paused | )$if2($upper(%codec%),-) |[ %playback_bitrate% kbps |][ %samplerate%Hz |][ %:BPS% bit |][ %channels% |] %playback_time% / %length%";
+
+    nowplaying_bc = deadbeef->tf_compile (nowplaying_tf_default);
+    statusbar_bc = deadbeef->tf_compile (statusbar_tf);
+
+    newtInit();
+    newtSetColor(NEWT_COLORSET_ROOT, "red", "black");
+    newtSetColor(NEWT_COLORSET_ROOTTEXT, "red", "black");
+    newtSetColor(NEWT_COLORSET_WINDOW, "white", "black");
+    newtSetColor(NEWT_COLORSET_LABEL, "white", "black");
+    newtSetColor(NEWT_COLORSET_TEXTBOX, "white", "black");
+    newtCls();
+    newtPushHelpLine("Keys: zxcvb = Prev, Play, Pause, Stop, Next, q = Quit, +/- = volume, </> = seek");
+    newtDrawRootText(0,0, "DeaDBeeF");
+
+    newtComponent playerform = create_form();
+
+    ui_running=1;
 
     struct newtExitStruct es;
     do {
@@ -143,6 +191,17 @@ ui_start (void) {
                 break;
                 case '-':
                 deadbeef->volume_set_db(deadbeef->volume_get_db()-5);
+                break;
+                case NEWT_KEY_LEFT:
+                seek_sec(-5.f);
+                break;
+                case NEWT_KEY_RIGHT:
+                seek_sec(5.f);
+                break;
+                case NEWT_KEY_RESIZE:
+                newtResizeScreen(1);
+                newtFormDestroy (playerform);
+                playerform = create_form();
                 break;
             }
         }
@@ -209,6 +268,7 @@ ui_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
 
     switch (id) {
     case DB_EV_SONGSTARTED:
+    case DB_EV_TRACKINFOCHANGED:
         {
         ddb_event_track_t *ev = (ddb_event_track_t *)ctx;
         if (ev->track) {
@@ -217,19 +277,6 @@ ui_message (uint32_t id, uintptr_t ctx, uint32_t p1, uint32_t p2) {
 
         break;
         }
-#if 0
-    case DB_EV_TRACKINFOCHANGED:
-        {
-            ddb_event_track_t *ev = (ddb_event_track_t *)ctx;
-            if (ev->track) {
-                char str[200];
-                format_title (ev->track, nowplaying_bc, str, sizeof(str));
-                printf ("%s\n", str);
-            }
-        }
-        break;
-#endif
-
     }
 
     return 0;

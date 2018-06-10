@@ -1,8 +1,8 @@
 # Console UI for deadbeef
 
-Using ncurses
+Using libnewt
 
-![Screenshot](../assets/screenshot.png?raw=true)
+![Screenshot](../assets/screenshot-newt.png?raw=true)
 
 This is only the bare minimum to load up a folder and play from the console.
 
