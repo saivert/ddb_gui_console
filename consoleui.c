@@ -49,7 +49,7 @@ render_title() {
     } else {
         strcpy (str, "No title");
     }
-    mvaddstr (1, 0, str);
+    mvaddstr (0, 0, str);
     clrtoeol ();
 }
 
@@ -64,14 +64,160 @@ render_statusbar() {
         strcpy (str, "Stopped");
     }
     mvaddstr (LINES - 1, 0, str);
+    clrtoeol();
     snprintf (str, sizeof(str), " Vol: %.0f%% (%.2f dB)", deadbeef->volume_get_db() * 2 + 100 , deadbeef->volume_get_db());
+    attron(COLOR_PAIR(2));
     mvaddstr (LINES - 1, COLS-strlen(str), str);
+    attroff(COLOR_PAIR(2));
     clrtoeol();
 }
 
 static void
 render_shortcuts() {
+    attron(A_DIM);
     mvaddstr (LINES - 2, 0, "Keys: z = Prev, x = Play, c = Pause, v = Stop, b = Next, q = Quit");
+    attroff(A_DIM);
+}
+
+static void
+render_currentplaylist() {
+
+    ddb_playlist_t *plt;
+    plt = deadbeef->plt_get_curr();
+
+    char playlist_title[256];
+    deadbeef->plt_get_title(plt, playlist_title, sizeof(playlist_title));
+
+    int max = getmaxy(stdscr);
+    mvprintw (1, 0, "Playlist: %s", playlist_title);
+    clrtoeol();
+    int line=2;
+
+    ddb_tf_context_t context;
+    context._size = sizeof(ddb_tf_context_t);
+    context.flags = 0;
+    //context.it = nowplaying;
+    context.plt = plt;
+    context.idx = 0;
+    context.id = 0;
+    context.iter = PL_MAIN;
+    context.update = 0;
+    context.dimmed = 0;
+
+    DB_playItem_t *item = deadbeef->plt_get_first (plt, PL_MAIN);
+    if (!item) {
+        if (plt)
+            deadbeef->plt_unref (plt);
+        return;
+    }
+    char * script = "%tracknumber%. %artist% - %title% /// %album%\n";
+    char * code_script = deadbeef->tf_compile (script);
+    int i = 0;
+    char buffer[256];
+    int currently_selected_idx = deadbeef->pl_get_cursor(PL_MAIN);
+    do {
+        int offset = sprintf (buffer, "%02d: ",i);
+        context.it = item;
+        deadbeef->tf_eval (&context, code_script, buffer+offset, 250);
+
+        if (i == currently_selected_idx)
+            attron(COLOR_PAIR(3));
+
+        //mvprintw(line++, 0, "%s%s", cur == item ? "> " : "  ",  buffer);
+        mvprintw(line++, 0, "  %s", buffer);
+        if (i == currently_selected_idx)
+            attroff(COLOR_PAIR(3));
+
+        clrtoeol();
+
+
+
+        DB_playItem_t *new = deadbeef->pl_get_next (item, PL_MAIN);
+        deadbeef->pl_item_unref (item);
+        if (new) {
+            i++;
+            item = new;
+        }
+        else {
+            break;
+        }
+    }
+    while (line < max-4);
+
+
+    DB_playItem_t *cur = deadbeef->streamer_get_playing_track();
+    if (cur) {
+        mvaddch(2+deadbeef->pl_get_idx_of(cur), 0, '>');
+        deadbeef->pl_item_unref (cur);
+    }
+
+
+    deadbeef->tf_free (code_script);
+    if (plt)
+        deadbeef->plt_unref (plt);
+
+}
+
+static void
+action_next_playlist (void) {
+    int tab = deadbeef->plt_get_curr_idx ();
+
+    if (tab == deadbeef->plt_get_count ()-1) {
+        tab = 0;
+    }
+    else {
+        tab++;
+    }
+
+    deadbeef->plt_set_curr_idx (tab);
+    deadbeef->conf_set_int ("playlist.current", tab);
+
+}
+
+static void
+action_prev_playlist (void) {
+    int tab = deadbeef->plt_get_curr_idx ();
+
+    if (tab == 0) {
+        tab = deadbeef->plt_get_count ()-1;
+    }
+    else {
+        tab--;
+    }
+
+    deadbeef->plt_set_curr_idx (tab);
+    deadbeef->conf_set_int ("playlist.current", tab);
+
+}
+
+static void
+action_select_next_track (void) {
+    int tab = deadbeef->pl_get_cursor(PL_MAIN);
+
+    if (tab == deadbeef->pl_getcount(PL_MAIN)-1) {
+        tab = 0;
+    }
+    else {
+        tab++;
+    }
+
+    deadbeef->pl_set_cursor(PL_MAIN, tab);
+
+}
+
+static void
+action_select_prev_track (void) {
+    int tab = deadbeef->pl_get_cursor(PL_MAIN);
+
+    if (tab == 0) {
+        tab = deadbeef->pl_getcount(PL_MAIN)-1;
+    }
+    else {
+        tab--;
+    }
+
+    deadbeef->pl_set_cursor(PL_MAIN, tab);
+
 }
 
 static int
@@ -84,13 +230,31 @@ ui_start (void) {
 
 
     initscr();
-    nodelay(stdscr, TRUE);
+	if(has_colors() == FALSE)
+	{	endwin();
+		printf("Your terminal does not support color\n");
+		exit(1);
+	}
+	start_color();
+	init_pair(1, COLOR_RED, COLOR_BLACK);
+    init_pair(2, COLOR_CYAN, COLOR_BLACK);
+    init_pair(3, COLOR_BLACK, COLOR_WHITE);
+    curs_set(0);
+    //cbreak();
+    //nodelay(stdscr, TRUE);
     keypad(stdscr, TRUE);
-    halfdelay(5);
+    halfdelay(1);
     noecho();
+
+
+    //bkgd(COLOR_PAIR(1));
+    //clear();
+
+    render_title();
     render_shortcuts ();
 
     while (ui_running) {
+        render_currentplaylist();
         render_statusbar();
         int c = getch ();
         switch (c) {
@@ -98,6 +262,7 @@ ui_start (void) {
             deadbeef->sendmessage (DB_EV_PREV, 0, 0, 0);
             break;
             case 'x':
+            case '\n':
             deadbeef->sendmessage (DB_EV_PLAY_CURRENT, 0, 0, 0);
             break;
             case 'c':
@@ -119,10 +284,23 @@ ui_start (void) {
             case '-':
             deadbeef->volume_set_db(deadbeef->volume_get_db()-5);
             break;
+            case KEY_UP:
+            action_select_prev_track();
+            break;
+            case KEY_DOWN:
+            action_select_next_track();
+            break;
+            case KEY_LEFT:
+            action_prev_playlist();
+            break;
+            case KEY_RIGHT:
+            action_next_playlist();
+            break;
             case KEY_RESIZE:
             clear ();
-            refresh ();
+            //refresh ();
             render_title ();
+            render_currentplaylist ();
             render_shortcuts ();
             render_statusbar ();
             break;
@@ -130,6 +308,8 @@ ui_start (void) {
         //sleep (.1);
 
     }
+    curs_set(1);
+    nocbreak();
     endwin();
 
     return 0;
@@ -171,8 +351,9 @@ format_title (DB_playItem_t *it, const char *tfbc, char *out, int sz) {
         .it = it,
         // FIXME: current playlist is not correct here.
         // need the playlist corresponding to the pointed track
-        .plt = deadbeef->plt_get_curr (),
+        .plt = deadbeef->pl_get_playlist(it),
     };
+    
     deadbeef->tf_eval (&ctx, tfbc, str, sizeof (str));
     if (ctx.plt) {
         deadbeef->plt_unref (ctx.plt);
@@ -241,7 +422,7 @@ static DB_gui_t plugin = {
     .plugin.descr = "User interface using ncurses",
     .plugin.copyright =
         "Console user interface for DeaDBeeF Player.\n"
-        "Copyright (C) 2018 Nicolai Syvertsen\n"
+        "Copyright (C) 2018-2020 Nicolai Syvertsen\n"
         "\n"
         "This software is provided 'as-is', without any express or implied\n"
         "warranty.  In no event will the authors be held liable for any damages\n"
