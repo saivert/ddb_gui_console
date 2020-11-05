@@ -88,7 +88,8 @@ render_currentplaylist() {
     char playlist_title[256];
     deadbeef->plt_get_title(plt, playlist_title, sizeof(playlist_title));
 
-    int max = getmaxy(stdscr);
+    int max, maxx;
+    getmaxyx(stdscr, max, maxx);
     mvprintw (1, 0, "Playlist: %s", playlist_title);
     clrtobot();
     int line=2;
@@ -126,7 +127,7 @@ render_currentplaylist() {
         //We set the playing indicator later
         //mvprintw(line++, 0, "%s%s", cur == item ? "> " : "  ",  buffer);
 
-        mvaddstr(line++, 2, buffer);
+        mvaddnstr(line++, 2, buffer, maxx-2);
         if (i == currently_selected_idx)
             attroff(COLOR_PAIR(3));
 
@@ -150,7 +151,9 @@ render_currentplaylist() {
     if (cur) {
         int idx=deadbeef->pl_get_idx_of(cur);
         if (idx >= 0) {
+            attron(COLOR_PAIR(2));
             mvaddch(2+deadbeef->pl_get_idx_of(cur), 0, '>');
+            attroff(COLOR_PAIR(2));
         }
         deadbeef->pl_item_unref (cur);
     }
