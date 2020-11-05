@@ -1,6 +1,6 @@
 /*
     DeaDBeeF console UI
-    Copyright (C) 2018 Nicolai Syvertsen
+    Copyright (C) 2018-2020 Nicolai Syvertsen
 
     This software is provided 'as-is', without any express or implied
     warranty.  In no event will the authors be held liable for any damages
@@ -90,7 +90,7 @@ render_currentplaylist() {
 
     int max = getmaxy(stdscr);
     mvprintw (1, 0, "Playlist: %s", playlist_title);
-    clrtoeol();
+    clrtobot();
     int line=2;
 
     ddb_tf_context_t context;
@@ -104,6 +104,7 @@ render_currentplaylist() {
     context.update = 0;
     context.dimmed = 0;
 
+
     DB_playItem_t *item = deadbeef->plt_get_first (plt, PL_MAIN);
     if (!item) {
         if (plt)
@@ -116,19 +117,19 @@ render_currentplaylist() {
     char buffer[256];
     int currently_selected_idx = deadbeef->pl_get_cursor(PL_MAIN);
     do {
-        int offset = sprintf (buffer, "%02d: ",i);
         context.it = item;
-        deadbeef->tf_eval (&context, code_script, buffer+offset, 250);
+        deadbeef->tf_eval (&context, code_script, buffer, 250);
 
         if (i == currently_selected_idx)
             attron(COLOR_PAIR(3));
 
+        //We set the playing indicator later
         //mvprintw(line++, 0, "%s%s", cur == item ? "> " : "  ",  buffer);
-        mvprintw(line++, 0, "  %s", buffer);
+
+        mvaddstr(line++, 2, buffer);
         if (i == currently_selected_idx)
             attroff(COLOR_PAIR(3));
 
-        clrtoeol();
 
 
 
@@ -147,7 +148,10 @@ render_currentplaylist() {
 
     DB_playItem_t *cur = deadbeef->streamer_get_playing_track();
     if (cur) {
-        mvaddch(2+deadbeef->pl_get_idx_of(cur), 0, '>');
+        int idx=deadbeef->pl_get_idx_of(cur);
+        if (idx >= 0) {
+            mvaddch(2+deadbeef->pl_get_idx_of(cur), 0, '>');
+        }
         deadbeef->pl_item_unref (cur);
     }
 
@@ -255,6 +259,7 @@ ui_start (void) {
 
     while (ui_running) {
         render_currentplaylist();
+        render_shortcuts ();
         render_statusbar();
         int c = getch ();
         switch (c) {
