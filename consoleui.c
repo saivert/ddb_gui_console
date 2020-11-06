@@ -258,6 +258,20 @@ ui_start (void) {
     nowplaying_bc = deadbeef->tf_compile (nowplaying_tf_default);
     statusbar_bc = deadbeef->tf_compile (statusbar_tf);
 
+    FILE *fl;
+    const char *syscachedir = deadbeef->get_system_dir(DDB_SYS_DIR_CACHE);
+    char logfile[PATH_MAX];
+    if (snprintf(logfile, sizeof(logfile), "%s/error.log", syscachedir) < 0)
+        return -1;
+    fl = fopen(logfile,"w");
+    if (fl) {
+        int nf;
+        nf = fileno(fl);
+        dup2(nf,STDERR_FILENO);
+    } else {
+        fprintf(stderr, "WARNING: cannot redirect standard error to %s, error messages from Deadbeef/plugins will corrupt the terminal.\n", logfile);
+    }
+
 
     initscr();
 	if(has_colors() == FALSE)
