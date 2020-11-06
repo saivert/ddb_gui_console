@@ -228,6 +228,29 @@ action_select_prev_track (void) {
 }
 
 static int
+seek_sec (float sec) {
+    deadbeef->pl_lock ();
+    DB_playItem_t *it = deadbeef->streamer_get_playing_track ();
+    if (it) {
+        float dur = deadbeef->pl_get_item_duration (it);
+        if (dur > 0) {
+            float pos = deadbeef->streamer_get_playpos ();
+            pos += sec;
+            if (pos > dur) {
+                pos = dur;
+            }
+            if (pos < 0) {
+                pos = 0;
+            }
+            deadbeef->sendmessage (DB_EV_SEEK, 0, (uint32_t)(pos * 1000), 0);
+        }
+        deadbeef->pl_item_unref (it);
+    }
+    deadbeef->pl_unlock ();
+    return 0;
+}
+
+static int
 ui_start (void) {
     const char *nowplaying_tf_default = "Now playing: %artist% - %title%";
     const char statusbar_tf[] = "$if2($strcmp(%ispaused%,),Paused | )$if2($upper(%codec%),-) |[ %playback_bitrate% kbps |][ %samplerate%Hz |][ %:BPS% bit |][ %channels% |] %playback_time% / %length%";
@@ -303,6 +326,12 @@ ui_start (void) {
             break;
             case KEY_RIGHT:
             action_next_playlist();
+            break;
+            case KEY_SLEFT:
+            seek_sec (-5.f);
+            break;
+            case KEY_SRIGHT:
+            seek_sec (5.f);
             break;
             case KEY_RESIZE:
             clear ();
