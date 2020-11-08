@@ -79,7 +79,8 @@ render_shortcuts() {
     attroff(A_DIM);
 }
 
-int get_scroll() {
+static int
+get_scroll() {
     ddb_playlist_t *plt = deadbeef->plt_get_curr();
     int cur = deadbeef->plt_get_scroll(plt);
     deadbeef->plt_unref(plt);
@@ -87,19 +88,30 @@ int get_scroll() {
 }
 
 static void
-adjust_scroll (int amount) {
+set_scroll(int scroll) {
     ddb_playlist_t *plt = deadbeef->plt_get_curr();
-    if (amount) {
-        int cur = deadbeef->plt_get_scroll(plt);
-        if (cur < 0) cur = 0;
-        int count = deadbeef->plt_get_item_count(plt, PL_MAIN) -1;
-        int next = cur + amount;
-        if (next < 0) next = 0;
-        if (next > count) next = count - count % amount;
-        deadbeef->plt_set_scroll(plt, next);
+    deadbeef->plt_set_scroll(plt, scroll);
+    deadbeef->plt_unref(plt);
+}
+
+static void
+adjust_scroll (int amount) {
+    int next, cur, count;
+
+    ddb_playlist_t *plt = deadbeef->plt_get_curr();
+    cur = deadbeef->plt_get_scroll(plt);
+    count = deadbeef->plt_get_item_count(plt, PL_MAIN) -1;
+
+    if (count < LINES-5) {
+        next = 0;
     } else {
-        deadbeef->plt_set_scroll(plt, 0);
+        if (cur < 0) cur = 0;
+        next = cur + amount;
+        if (next < 0) next = 0;
+        if (next > count-LINES+5) next = count-LINES+5;
     }
+
+    deadbeef->plt_set_scroll(plt, next);
     deadbeef->plt_unref(plt);
 }
 
@@ -228,7 +240,7 @@ action_select_next_track (void) {
 
     if (tab == deadbeef->pl_getcount(PL_MAIN)-1) {
         tab = 0;
-        adjust_scroll(0);
+        set_scroll(0);
     }
     else {
         tab++;
@@ -247,7 +259,7 @@ action_select_prev_track (void) {
 
     if (tab == 0) {
         tab = deadbeef->pl_getcount(PL_MAIN)-1;
-        adjust_scroll(tab-LINES+5);
+        set_scroll(tab-LINES+5);
     }
     else {
         tab--;
@@ -389,6 +401,13 @@ ui_start (void) {
             break;
             case KEY_NPAGE:
             adjust_scroll(5);
+            break;
+            case KEY_HOME:
+            set_scroll(0);
+            break;
+            case KEY_END:
+            if (deadbeef->pl_getcount(PL_MAIN)-1 > LINES+5)
+                set_scroll(deadbeef->pl_getcount(PL_MAIN)-1-LINES+5);
             break;
             case KEY_RESIZE:
             clear ();
