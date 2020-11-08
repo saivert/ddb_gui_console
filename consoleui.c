@@ -115,6 +115,25 @@ adjust_scroll (int amount) {
     deadbeef->plt_unref(plt);
 }
 
+static int playlist_needs_update;
+
+static void
+render_playing_indicator(void) {
+
+    int plviewoffset = get_scroll();
+
+    DB_playItem_t *cur = deadbeef->streamer_get_playing_track();
+    if (cur) {
+        int idx=deadbeef->pl_get_idx_of(cur);
+        if (idx-plviewoffset >= 0) {
+            attron(COLOR_PAIR(2));
+            mvaddch(2+(idx-plviewoffset), 0, '>');
+            attroff(COLOR_PAIR(2));
+        }
+        deadbeef->pl_item_unref (cur);
+    }
+}
+
 static void
 render_currentplaylist() {
 
@@ -183,17 +202,6 @@ render_currentplaylist() {
         }
     }
     while (line < max-2);
-
-    DB_playItem_t *cur = deadbeef->streamer_get_playing_track();
-    if (cur) {
-        int idx=deadbeef->pl_get_idx_of(cur);
-        if (idx >= 0) {
-            attron(COLOR_PAIR(2));
-            mvaddch(2+(idx-plviewoffset), 0, '>');
-            attroff(COLOR_PAIR(2));
-        }
-        deadbeef->pl_item_unref (cur);
-    }
 
 
     deadbeef->tf_free (code_script);
@@ -344,6 +352,7 @@ ui_start (void) {
 
     while (ui_running) {
         render_currentplaylist();
+        render_playing_indicator();
         render_shortcuts ();
         render_statusbar();
         #ifdef CONSOLEUI_DEBUG
