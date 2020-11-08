@@ -79,6 +79,30 @@ render_shortcuts() {
     attroff(A_DIM);
 }
 
+int get_scroll() {
+    ddb_playlist_t *plt = deadbeef->plt_get_curr();
+    int cur = deadbeef->plt_get_scroll(plt);
+    deadbeef->plt_unref(plt);
+    return cur;
+}
+
+static void
+adjust_scroll (int amount) {
+    ddb_playlist_t *plt = deadbeef->plt_get_curr();
+    if (amount) {
+        int cur = deadbeef->plt_get_scroll(plt);
+        if (cur < 0) cur = 0;
+        int count = deadbeef->plt_get_item_count(plt, PL_MAIN) -1;
+        int next = cur + amount;
+        if (next < 0) next = 0;
+        if (next > count) next = count - count % amount;
+        deadbeef->plt_set_scroll(plt, next);
+    } else {
+        deadbeef->plt_set_scroll(plt, 0);
+    }
+    deadbeef->plt_unref(plt);
+}
+
 static void
 render_currentplaylist() {
 
@@ -117,21 +141,23 @@ render_currentplaylist() {
     int i = 0;
     char buffer[256];
     int currently_selected_idx = deadbeef->pl_get_cursor(PL_MAIN);
+    int plviewoffset = get_scroll();
     do {
-        context.it = item;
-        deadbeef->tf_eval (&context, code_script, buffer, 250);
+        if (i >= plviewoffset) {
+            context.it = item;
+            deadbeef->tf_eval (&context, code_script, buffer, 250);
 
-        if (i == currently_selected_idx)
-            attron(COLOR_PAIR(3));
+            if (i == currently_selected_idx)
+                attron(COLOR_PAIR(3));
 
-        //We set the playing indicator later
-        //mvprintw(line++, 0, "%s%s", cur == item ? "> " : "  ",  buffer);
+            //We set the playing indicator later
+            //mvprintw(line++, 0, "%s%s", cur == item ? "> " : "  ",  buffer);
 
-        mvaddnstr(line++, 2, buffer, maxx-2);
-        if (i == currently_selected_idx)
-            attroff(COLOR_PAIR(3));
+            mvaddnstr(line++, 2, buffer, maxx-2);
+            if (i == currently_selected_idx)
+                attroff(COLOR_PAIR(3));
 
-
+        }
 
 
         DB_playItem_t *new = deadbeef->pl_get_next (item, PL_MAIN);
@@ -144,15 +170,14 @@ render_currentplaylist() {
             break;
         }
     }
-    while (line < max-4);
-
+    while (line < max-2);
 
     DB_playItem_t *cur = deadbeef->streamer_get_playing_track();
     if (cur) {
         int idx=deadbeef->pl_get_idx_of(cur);
         if (idx >= 0) {
             attron(COLOR_PAIR(2));
-            mvaddch(2+deadbeef->pl_get_idx_of(cur), 0, '>');
+            mvaddch(2+(idx-plviewoffset), 0, '>');
             attroff(COLOR_PAIR(2));
         }
         deadbeef->pl_item_unref (cur);
@@ -203,10 +228,14 @@ action_select_next_track (void) {
 
     if (tab == deadbeef->pl_getcount(PL_MAIN)-1) {
         tab = 0;
+        adjust_scroll(0);
     }
     else {
         tab++;
     }
+
+    int scroll = get_scroll();
+    if (tab-scroll > LINES-5) adjust_scroll(+5);
 
     deadbeef->pl_set_cursor(PL_MAIN, tab);
 
@@ -218,10 +247,14 @@ action_select_prev_track (void) {
 
     if (tab == 0) {
         tab = deadbeef->pl_getcount(PL_MAIN)-1;
+        adjust_scroll(tab-LINES+5);
     }
     else {
         tab--;
     }
+
+    int scroll = get_scroll();
+    if (tab-scroll+1 == 0) adjust_scroll(-5);
 
     deadbeef->pl_set_cursor(PL_MAIN, tab);
 
@@ -301,6 +334,10 @@ ui_start (void) {
         render_currentplaylist();
         render_shortcuts ();
         render_statusbar();
+        #ifdef CONSOLEUI_DEBUG
+        int curscroll = get_scroll();
+        mvprintw(LINES-1, 60, "Scroll: %d   ", curscroll);
+        #endif
         int c = getch ();
         switch (c) {
             case 'z':
@@ -346,6 +383,12 @@ ui_start (void) {
             break;
             case KEY_SRIGHT:
             seek_sec (5.f);
+            break;
+            case KEY_PPAGE:
+            adjust_scroll(-5);
+            break;
+            case KEY_NPAGE:
+            adjust_scroll(5);
             break;
             case KEY_RESIZE:
             clear ();
