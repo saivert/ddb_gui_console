@@ -332,16 +332,16 @@ ui_start (void) {
 		printf("Your terminal does not support color\n");
 		exit(1);
 	}
+    curs_set(0);
+    noecho();
+
 	start_color();
+    use_default_colors();
 	init_pair(1, COLOR_RED, COLOR_BLACK);
     init_pair(2, COLOR_CYAN, COLOR_BLACK);
     init_pair(3, COLOR_BLACK, COLOR_WHITE);
-    curs_set(0);
-    //cbreak();
-    //nodelay(stdscr, TRUE);
     keypad(stdscr, TRUE);
     halfdelay(1);
-    noecho();
 
 
     //bkgd(COLOR_PAIR(1));
